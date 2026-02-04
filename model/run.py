@@ -116,7 +116,7 @@ def run(image: Tensor,
                          original_text=original_text, 
                          target_text=target_text,
                          frozen=True,
-                         content_weight=1.0).to(device)
+                         content_weight=0.7).to(device)
     lut_applier = LUTApplier(33).to(device)
     optimizer = optim.AdamW(predictor.parameters(), lr)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=iteration, eta_min=1e-6) # 添加学习率调度器
@@ -142,10 +142,10 @@ def run(image: Tensor,
         # 计算色彩体积损失：仅防止体积坍缩 (Hinge Loss)
         current_vol = get_color_volume(stylized_image)
         
-        # 我们只惩罚体积小于原图 85% 的情况，允许由于风格化导致的体积变化（甚至增加）
+        # 我们只惩罚体积小于原图 99% 的情况，允许由于风格化导致的体积变化（甚至增加）
         # 这样既防止了纯色化 (Vol -> 0)，又给了 CLIP 足够的优化空间
-        target_vol = original_vol * 0.95
-        loss_volume = torch.relu(target_vol - current_vol).mean() * 100000.0
+        target_vol = original_vol
+        loss_volume = torch.relu(target_vol - current_vol).mean() * 1000000000.0
 
         loss = total_clip_loss + mono_loss + loss_volume
 
@@ -237,5 +237,5 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     img = image_to_tensor("shw.jpg", 336).to(device)
     # 增加迭代次数以允许更细致的收敛
-    run(img, "一条赛博朋克风格的巷子", original_text="一条巷子", lr=2e-4, epsilon=2e-3, iteration=1500)
+    run(img, "一条蓝色调的巷子", original_text="一条巷子", lr=2e-4, epsilon=2e-3, iteration=1000)
 

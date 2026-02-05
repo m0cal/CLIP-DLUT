@@ -145,7 +145,9 @@ def run(image: Tensor,
         # 我们只惩罚体积小于原图 99% 的情况，允许由于风格化导致的体积变化（甚至增加）
         # 这样既防止了纯色化 (Vol -> 0)，又给了 CLIP 足够的优化空间
         target_vol = original_vol
-        loss_volume = torch.relu(target_vol - current_vol).mean() * 1000000000.0
+        loss_volume = (torch.relu(torch.log(target_vol + 1e-8) - torch.log(current_vol + 1e-8)))**4
+        loss_volume = loss_volume.mean()
+
 
         loss = total_clip_loss + mono_loss + loss_volume
 

@@ -109,7 +109,8 @@ class AllLoss(nn.Module):
                  original_image, 
                  original_text, 
                  target_text,
-                 weights: LossWeights = LossWeights()):
+                 weights: LossWeights = LossWeights(clip=1.0, clip_c=0.7, mono=1.0, smoothness=1.0, color_vol=1.0, color_shift=1.0, color_eigen=1.0)):
+
         super().__init__()
         self.weights = weights
         self.clip_loss = CLIPLoss(original_image, original_text, target_text, content_weight=weights.clip_c)

@@ -1,4 +1,4 @@
-from clip_loss import CLIPLoss
+from .clip_loss import CLIPLoss
 import torch
 from torch import Tensor
 import torch.nn as nn
@@ -183,17 +183,45 @@ class AllLoss(nn.Module):
         vol_loss = torch.relu(torch.log(self.original_vol + 1e-8) - torch.log(output_vol + 1e-8)).mean()
 
         # Shift Loss (using inline calculation for efficiency)
-        shift_loss = torch.norm(output_mean - self.original_mean.to(output_image.device), p=2, dim=1).mean()
-        
+        shift_val = torch.norm(output_mean - self.original_mean.to(output_image.device), p=2, dim=1).mean()
+        shift_loss = shift_val # Actually they are the same in this implementation
+
         # Eigen Loss
         eigen_loss = torch.relu(self.original_min_eigen.to(output_image.device) - output_min_eigen).mean()
 
+        # Calculate weighted losses
+        w_clip_loss = clip_loss * self.weights.clip
+        w_mono_loss = loss_mono * self.weights.mono
+        w_smooth_loss = loss_smooth * self.weights.smoothness
+        w_vol_loss = vol_loss * self.weights.color_vol
+        w_shift_loss = shift_loss * self.weights.color_shift
+        w_eigen_loss = eigen_loss * self.weights.color_eigen
+
         total_loss = (
-            clip_loss * self.weights.clip +
-            loss_mono * self.weights.mono +
-            loss_smooth * self.weights.smoothness +
-            vol_loss * self.weights.color_vol +
-            shift_loss * self.weights.color_shift +
-            eigen_loss * self.weights.color_eigen
+            w_clip_loss +
+            w_mono_loss +
+            w_smooth_loss +
+            w_vol_loss +
+            w_shift_loss +
+            w_eigen_loss
         )
-        return total_loss 
+        
+        loss_info = {
+            "clip_loss": clip_loss,
+            "mono_loss": loss_mono,
+            "smooth_loss": loss_smooth,
+            "vol_loss": vol_loss,
+            "shift_loss": shift_loss,
+            "eigen_loss": eigen_loss,
+            "w_clip_loss": w_clip_loss,
+            "w_mono_loss": w_mono_loss,
+            "w_smooth_loss": w_smooth_loss,
+            "w_vol_loss": w_vol_loss,
+            "w_shift_loss": w_shift_loss,
+            "w_eigen_loss": w_eigen_loss,
+            "vol": output_vol.mean(), # Mean over batch if batch > 1
+            "min_eigen": output_min_eigen.mean(),
+            "shift": shift_val
+        }
+        
+        return total_loss, loss_info 

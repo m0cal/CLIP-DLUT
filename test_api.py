@@ -64,21 +64,30 @@ def apply_cube_lut(image_path: str, lut_content: str, output_path: str):
     except Exception as e:
         print(f"❌ Failed to apply LUT locally: {e}")
 
-def load_test_image_b64():
-    """Load model/test.jpg for testing."""
-    # Try to load existing test image
-    image_path = os.path.join("model", "shw.jpg")
-    if os.path.exists(image_path):
-        print(f"📄 Loading test image from: {image_path}")
-        with open(image_path, "rb") as f:
-            return base64.b64encode(f.read()).decode('utf-8')
+def prepare_input_image():
+    """Load or create test image and save to 'test_input_sent.png'."""
+    # Prioritize model/test.jpg, fallback to model/shw.jpg for backward compat
+    image_paths = [os.path.join("model", "shw.jpg"), os.path.join("model", "shw.jpg")]
+    
+    selected_path = None
+    for p in image_paths:
+        if os.path.exists(p):
+            selected_path = p
+            break
             
-    print("⚠️ Test image not found, using dummy red square.")
-    img = Image.new('RGB', (100, 100), color = 'red')
-    img_byte_arr = io.BytesIO()
-    img.save(img_byte_arr, format='PNG')
-    img_byte_arr = img_byte_arr.getvalue()
-    return base64.b64encode(img_byte_arr).decode('utf-8')
+    target_path = "test_input_sent.png"
+    
+    if selected_path:
+        print(f"📄 Loading test image from: {selected_path}")
+        img = Image.open(selected_path).convert('RGB')
+        img.save(target_path)
+    else:
+        print("⚠️ Test image not found, using dummy red square.")
+        img = Image.new('RGB', (100, 100), color = 'red')
+        img.save(target_path)
+    
+    with open(target_path, "rb") as f:
+        return base64.b64encode(f.read()).decode('utf-8')
 
 def check_health():
     """Check if the API is reachable."""
@@ -111,9 +120,13 @@ def run_test():
 
     # 1. Submit Taks
     print("\n1. Submitting Retouch Task...")
+    
+    # Save input image to disk first for consistency
+    image_b64 = prepare_input_image()
+    
     payload = {
-        "image": load_test_image_b64(),
-        "target_prompt": "一条蓝色调的巷子",
+        "image": image_b64,
+        "target_prompt": "一条蓝色色调的巷子",
         "original_prompt": "一条巷子", 
         "iteration": 1000 # Incremented iteration for better effect
     }
@@ -183,11 +196,12 @@ def run_test():
 
                 # Apply LUT locally to verify
                 if lut_content_str:
-                    input_image_path = os.path.join("model", "test.jpg")
+                    # Apply to the exact image we sent
+                    input_image_path = "test_input_sent.png"
                     if os.path.exists(input_image_path):
                          apply_cube_lut(input_image_path, lut_content_str, "client_lut_applied.png")
                     else:
-                        print("⚠️ Skipping local LUT application: Input image model/test.jpg not found.")
+                        print("⚠️ Skipping local LUT application: Input image test_input_sent.png not found.")
 
                 break
             

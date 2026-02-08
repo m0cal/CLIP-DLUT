@@ -46,9 +46,9 @@ class CLIPLoss(nn.Module):
         
         with torch.no_grad():
             self.original_text_features = self.model.get_text_features(**original_text_input).pooler_output
-            self.original_text_features = self.original_text_features / self.original_text_features.norm(
+            self.original_text_features = self.original_text_features / (self.original_text_features.norm(
                 p=2, dim=-1, keepdim=True
-            )
+            ) + 1e-8)
 
             # 计算 target_text_features
             target_text_input = self.text_processor(
@@ -59,23 +59,23 @@ class CLIPLoss(nn.Module):
 
             self.target_text_features = self.model.get_text_features(**target_text_input).pooler_output
             # 同样先归一化，保证在同一尺度下计算方向
-            self.target_text_features = self.target_text_features / self.target_text_features.norm(
+            self.target_text_features = self.target_text_features / (self.target_text_features.norm(
                 p=2, dim=-1, keepdim=True
-            )
+            ) + 1e-8)
             
             # 计算方向性风格特征
             self.style_features = self.target_text_features - self.original_text_features
-            self.style_features = self.style_features / self.style_features.norm(
+            self.style_features = self.style_features / (self.style_features.norm(
                 p=2, dim=-1, keepdim=True
-            )
+            ) + 1e-8)
 
             # 计算原始图像特征
             original_image_input = self.image_processor(original_image)
             self.original_image_features = self.model.get_image_features(original_image_input).pooler_output
             # 归一化原始图像特征，与文本对齐
-            self.original_image_features = self.original_image_features / self.original_image_features.norm(
+            self.original_image_features = self.original_image_features / (self.original_image_features.norm(
                 p=2, dim=-1, keepdim=True
-            )
+            ) + 1e-8)
 
     def forward(self, edited_image: Tensor) -> Tensor:
         """
@@ -91,15 +91,15 @@ class CLIPLoss(nn.Module):
         
         # 提取图像特征
         edited_image_features = self.model.get_image_features(edited_image_input).pooler_output
-        edited_image_features = edited_image_features / edited_image_features.norm(
+        edited_image_features = edited_image_features / (edited_image_features.norm(
             p=2, dim=-1, keepdim=True
-        )
+        ) + 1e-8)
         
         # 计算编辑方向，归一化
         edit_direction = edited_image_features - self.original_image_features
-        edit_direction = edit_direction / edit_direction.norm(
+        edit_direction = edit_direction / (edit_direction.norm(
             p=2, dim=-1, keepdim=True
-        )
+        ) + 1e-8)
         # 计算方向性损失（余弦相似度）
         # 我们希望编辑方向与风格方向一致
         directional_loss = 1.0 - torch.cosine_similarity(

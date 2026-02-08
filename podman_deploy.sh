@@ -51,6 +51,8 @@ echo "Starting Backend..."
 podman run -d --pod $POD_NAME \
     --name $BACKEND_CONTAINER \
     -v $(pwd)/storage:/app/storage \
+    -v $(pwd)/backend:/app/backend \
+    -v $(pwd)/model:/app/model \
     $IMAGE_NAME \
     uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
@@ -61,6 +63,8 @@ podman run -d --pod $POD_NAME \
     --device nvidia.com/gpu=all \
     --name $WORKER_CONTAINER \
     -v $(pwd)/storage:/app/storage \
+    -v $(pwd)/backend:/app/backend \
+    -v $(pwd)/model:/app/model \
     $IMAGE_NAME \
     celery -A backend.core.celery_app worker --loglevel=info --concurrency=1 --pool=solo
 

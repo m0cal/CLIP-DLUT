@@ -49,16 +49,29 @@ def run(image: Tensor,
 
         optimizer.zero_grad()
         loss.backward()
+        print("-" * 30)
+        has_grad = False
+        for name, param in predictor.named_parameters():
+            if param.grad is not None:
+                # .abs().mean() 可以直观看到梯度强度，避免被正负值抵消
+                print(f"层: {name} | 梯度均值: {param.grad.abs().mean().item():.8f}")
+                has_grad = True
+            else:
+                print(f"层: {name} | 警告: 没有梯度 (None)")
 
-        # REMOVED gradient printing loop for performance
-        
+        if not has_grad:
+            print("结果：模型完全没有收到梯度信号！")
+        print("-" * 30)
         optimizer.step()
         scheduler.step() # 更新学习率
 
         current_lut = updated_lut.detach()
         
-        # REMOVED loss printing for performance
-
+        print(f"Step {step}, Total Loss: {loss.item():.6f}")
+        print(f"  CLIP Loss: {loss_info['w_clip_loss'].item():.6f} (Raw: {loss_info['clip_loss'].item():.6f})")
+        print(f"  Mono Loss: {loss_info['w_mono_loss'].item():.6f} (Raw: {loss_info['mono_loss'].item():.6f}) | Smooth Loss: {loss_info['w_smooth_loss'].item():.6f} (Raw: {loss_info['smooth_loss'].item():.6f})")
+        print(f"  Vol: {loss_info['vol'].item():.6f} (Loss: {loss_info['w_vol_loss'].item():.6f})")
+        print(f"  Min Eigen: {loss_info['min_eigen'].item():.6f} (Loss: {loss_info['w_eigen_loss'].item():.6f})")
         if progress_callback:
             progress_callback(step, iteration, loss.item(), loss_info, stylized_image, updated_lut)
 

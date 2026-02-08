@@ -13,6 +13,8 @@ from .core.config import settings
 from .utils.image_tool import ImageTool
 from .utils.lut_utils import tensor_to_cube, tensor_to_png_strip
 from celery.result import AsyncResult
+import json
+import redis
 from PIL import Image
 import base64
 
@@ -79,8 +81,35 @@ async def query_task(request: QueryTaskRequest):
     image_data = None
     
     celery_status = task_result.status
+    # Directly read backend meta to avoid PENDING fallback when state exists
+    task_meta = task_result.backend.get_task_meta(task_result.id) if task_result.backend else {}
+    meta_status = task_meta.get("status") if isinstance(task_meta, dict) else None
+    meta_result = task_meta.get("result") if isinstance(task_meta, dict) else None
+    meta_status_norm = meta_status.lower() if isinstance(meta_status, str) else None
     
-    if celery_status == 'PENDING':
+    if meta_status_norm in ("processing", "started") and isinstance(meta_result, dict):
+        status = TaskStatus.PROCESSING
+        current_iter = meta_result.get("current_iteration", 0)
+        if request.include_image:
+            image_data = meta_result.get("preview", None)
+    elif meta_status_norm is None and celery_status == 'PENDING':
+        # Fallback: read raw meta from Redis directly
+        try:
+            r = redis.Redis(host="localhost", port=6379, db=0)
+            raw = r.get(f"celery-task-meta-{task_result.id}")
+            if raw:
+                meta = json.loads(raw)
+                meta_status = meta.get("status")
+                meta_result = meta.get("result")
+                meta_status_norm = meta_status.lower() if isinstance(meta_status, str) else None
+                if meta_status_norm in ("processing", "started") and isinstance(meta_result, dict):
+                    status = TaskStatus.PROCESSING
+                    current_iter = meta_result.get("current_iteration", 0)
+                    if request.include_image:
+                        image_data = meta_result.get("preview", None)
+        except Exception:
+            pass
+    elif celery_status == 'PENDING':
         status = TaskStatus.PENDING
     elif celery_status == 'STARTED' or celery_status == 'PROCESSING': # Custom state or standard STARTED
         status = TaskStatus.PROCESSING

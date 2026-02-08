@@ -2,6 +2,7 @@ import sys
 import os
 import torch
 import traceback
+import gc
 from celery import Task
 from celery.utils.log import get_task_logger
 
@@ -128,3 +129,9 @@ def process_image_task(self,
     except Exception as e:
         logger.error(traceback.format_exc())
         raise e
+    finally:
+        # Force garbage collection and empty CUDA cache
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            logger.info(f"Task {task_id}: CUDA cache emptied.")

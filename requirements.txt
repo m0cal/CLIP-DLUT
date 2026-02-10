@@ -13,7 +13,7 @@ anyio==4.12.1
     #   gradio
     #   httpx
     #   starlette
-audioop-lts==0.2.2
+# audioop-lts==0.2.2
     # via gradio
 billiard==4.2.4
     # via celery

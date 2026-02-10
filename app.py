@@ -119,7 +119,7 @@ with gr.Blocks(title="CLIP-DLUT Style Transfer") as demo:
             
             original_text_comp = gr.Textbox(
                 label="Original Image Description (Optional)", 
-                value="夜晚的大楼",
+                value="相机直出的风景或人物",
                 info="Describe the content of the original image for better semantic preservation."
             )
             

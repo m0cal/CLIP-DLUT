@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # CLIP-DLUT
 
 CLIP-DLUT is a deep learning-based image retouching system that leverages the CLIP model to optimize 3D Look-Up Tables (LUTs) based on text descriptions. Users can provide an input image and a text prompt (e.g., "Cyberpunk style night city"), and the system will generate a stylized image along with a compatible .cube 3D LUT file.
@@ -135,3 +136,4 @@ This script performs the following actions:
 2.  Polls the server until completion.
 3.  Downloads the result image and the .cube LUT.
 4.  Applies the downloaded .cube LUT locally using Pillow to verify that the client-side rendering matches the server-side reference.
+=======

@@ -15,7 +15,7 @@ COPY pyproject.toml .
 # Note: In a real setup, we'd use a requirements.txt or poetry/uv
 # Here we extract from pyproject or just install manually known deps
 RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
-RUN pip install fastapi uvicorn[standard] redis celery[redis] python-multipart pillow pydantic-settings transformers ftfy regex tqdm
+RUN pip install fastapi uvicorn[standard] redis celery[redis] python-multipart pillow pydantic-settings transformers ftfy regex tqdm modelscope
 
 COPY . .
 

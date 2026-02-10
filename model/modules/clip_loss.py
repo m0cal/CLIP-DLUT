@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-from transformers import ChineseCLIPProcessor, ChineseCLIPModel
+from modelscope import ChineseCLIPProcessor, ChineseCLIPModel
 
 from .image_preprocesser import DifferentiableChineseCLIPProcessor
 
@@ -26,7 +26,7 @@ class CLIPLoss(nn.Module):
         self.device = device
         
         # 加载模型
-        self.model = ChineseCLIPModel.from_pretrained("OFA-Sys/chinese-clip-vit-large-patch14-336px").to(device)
+        self.model = ChineseCLIPModel.from_pretrained("AI-ModelScope/chinese-clip-vit-large-patch14-336px").to(device)
 
         # 冻结模型参数
         if frozen:
@@ -34,7 +34,7 @@ class CLIPLoss(nn.Module):
                 param.requires_grad = False
             self.model.eval()
         
-        self.text_processor = ChineseCLIPProcessor.from_pretrained("OFA-Sys/chinese-clip-vit-large-patch14-336px")
+        self.text_processor = ChineseCLIPProcessor.from_pretrained("AI-ModelScope/chinese-clip-vit-large-patch14-336px")
         self.image_processor = DifferentiableChineseCLIPProcessor().to(self.device)
 
         # 计算 original_text_features

@@ -10,7 +10,7 @@ import gradio as gr
 import requests
 from PIL import Image, ImageDraw
 
-API_BASE = "http://127.0.0.1:8000"
+API_BASE = os.getenv("API_BASE", "http://127.0.0.1:8000")
 POLL_INTERVAL_SECONDS = 1.0
 POLL_TIMEOUT_SECONDS = 3600
 DISPLAY_MAX_W = 1200

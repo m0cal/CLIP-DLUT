@@ -7,6 +7,36 @@ from modelscope import ChineseCLIPProcessor, ChineseCLIPModel
 
 from .image_preprocesser import DifferentiableChineseCLIPProcessor
 
+# 全局缓存，避免重复加载模型
+_CACHED_CLIP_MODEL = None
+_CACHED_TEXT_PROCESSOR = None
+_CACHED_IMAGE_PROCESSOR = None
+
+def get_shared_clip_model(device):
+    """获取共享的 CLIP 模型实例（单例模式）"""
+    global _CACHED_CLIP_MODEL, _CACHED_TEXT_PROCESSOR, _CACHED_IMAGE_PROCESSOR
+    
+    if _CACHED_CLIP_MODEL is None:
+        print("[CLIP] 首次加载模型...")
+        _CACHED_CLIP_MODEL = ChineseCLIPModel.from_pretrained(
+            "AI-ModelScope/chinese-clip-vit-large-patch14-336px"
+        ).to(device)
+        
+        # 冻结模型参数
+        for param in _CACHED_CLIP_MODEL.parameters():
+            param.requires_grad = False
+        _CACHED_CLIP_MODEL.eval()
+        
+        _CACHED_TEXT_PROCESSOR = ChineseCLIPProcessor.from_pretrained(
+            "AI-ModelScope/chinese-clip-vit-large-patch14-336px"
+        )
+        _CACHED_IMAGE_PROCESSOR = DifferentiableChineseCLIPProcessor().to(device)
+        print("[CLIP] 模型加载完成并已缓存")
+    else:
+        print("[CLIP] 使用缓存的模型")
+    
+    return _CACHED_CLIP_MODEL, _CACHED_TEXT_PROCESSOR, _CACHED_IMAGE_PROCESSOR
+
 class CLIPLoss(nn.Module):
     def __init__(
         self, 
@@ -25,17 +55,8 @@ class CLIPLoss(nn.Module):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.device = device
         
-        # 加载模型
-        self.model = ChineseCLIPModel.from_pretrained("AI-ModelScope/chinese-clip-vit-large-patch14-336px").to(device)
-
-        # 冻结模型参数
-        if frozen:
-            for param in self.model.parameters():
-                param.requires_grad = False
-            self.model.eval()
-        
-        self.text_processor = ChineseCLIPProcessor.from_pretrained("AI-ModelScope/chinese-clip-vit-large-patch14-336px")
-        self.image_processor = DifferentiableChineseCLIPProcessor().to(self.device)
+        # 使用缓存的模型（避免重复加载）
+        self.model, self.text_processor, self.image_processor = get_shared_clip_model(device)
 
         # 计算 original_text_features
         original_text_input = self.text_processor(

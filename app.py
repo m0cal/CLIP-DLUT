@@ -3,6 +3,7 @@ import os
 from PIL import Image, ImageFilter
 import gradio as gr
 import torch
+import tempfile
 
 # Get absolute path of the current directory (project root)
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -23,9 +24,12 @@ except ImportError:
     # Fallback: try importing as if 'run' is a top level module because of sys.path append
     from run import run, image_to_tensor, tensor_to_image
 
+# Import LUT utilities
+from backend.utils.lut_utils import tensor_to_cube
+
 def process_image(image_path, target_text, original_text, epsilon, lr, iteration, progress=gr.Progress()):
     if image_path is None:
-        return None
+        return None, None
     
     if not target_text:
         target_text = "Standard image"
@@ -79,11 +83,19 @@ def process_image(image_path, target_text, original_text, epsilon, lr, iteration
         lut_filter = ImageFilter.Color3DLUT(33, lut_values)
         result_img = original_img.filter(lut_filter)
         
-        return result_img
+        # Generate .cube file
+        cube_content = tensor_to_cube(updated_lut, title="CLIP_DLUT_Result")
+        
+        # Create a temporary file for the .cube
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.cube', delete=False) as f:
+            f.write(cube_content)
+            cube_file_path = f.name
+        
+        return result_img, cube_file_path
     except Exception as e:
         print(f"Error applying LUT: {e}")
         # Fallback to low-res result if something fails
-        return tensor_to_image(stylized_tensor)
+        return tensor_to_image(stylized_tensor), None
 
 # Create Gradio Interface
 with gr.Blocks(title="CLIP-DLUT Style Transfer") as demo:
@@ -101,13 +113,13 @@ with gr.Blocks(title="CLIP-DLUT Style Transfer") as demo:
             target_text_comp = gr.Textbox(
                 label="Target Style Description", 
                 placeholder="e.g. A cyberpunk night city with neon lights", 
-                value="富有科技感的夜晚大楼",
+                value="赛博朋克的夜晚大楼",
                 info="Describe the visual style you want to achieve."
             )
             
             original_text_comp = gr.Textbox(
                 label="Original Image Description (Optional)", 
-                value="一张自然的原相机直出图",
+                value="夜晚的大楼",
                 info="Describe the content of the original image for better semantic preservation."
             )
             
@@ -126,6 +138,7 @@ with gr.Blocks(title="CLIP-DLUT Style Transfer") as demo:
             
         with gr.Column(scale=1):
             output_image_comp = gr.Image(label="Stylized Result")
+            output_cube_comp = gr.File(label="Download LUT (.cube)")
 
     run_btn.click(
         fn=process_image,
@@ -137,7 +150,7 @@ with gr.Blocks(title="CLIP-DLUT Style Transfer") as demo:
             lr_comp, 
             iteration_comp
         ],
-        outputs=output_image_comp
+        outputs=[output_image_comp, output_cube_comp]
     )
 
 if __name__ == "__main__":

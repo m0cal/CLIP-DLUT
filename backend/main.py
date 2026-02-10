@@ -35,6 +35,7 @@ def read_root():
 @app.post("/retouch", response_model=RetouchingResponse)
 async def create_retouch_task(request: RetouchingRequest):
     task_id = str(uuid.uuid4())
+    iteration = max(1, min(5000, int(request.iteration)))
     
     # Send to Celery
     # We pass the image as base64 to avoid passing large data if possible, 
@@ -56,7 +57,7 @@ async def create_retouch_task(request: RetouchingRequest):
             request.image,
             request.target_prompt,
             request.original_prompt,
-            request.iteration,
+            iteration,
             task_id
         ],
         task_id=task_id
@@ -66,7 +67,7 @@ async def create_retouch_task(request: RetouchingRequest):
         task_id=uuid.UUID(task_id),
         status=TaskStatus.PENDING,
         current_iteration=0,
-        overall_iteration=request.iteration,
+        overall_iteration=iteration,
         lut=None,
         image=None # Not returning full image in immediate response
     )
@@ -77,52 +78,94 @@ async def query_task(request: QueryTaskRequest):
     
     status = TaskStatus.PENDING
     current_iter = 0
+    overall_iter = 1000
     lut_data = None
     image_data = None
+    error_message = None
     
     celery_status = task_result.status
-    # Directly read backend meta to avoid PENDING fallback when state exists
+    # Directly read backend meta; Redis fallback handles cases where celery_status stays PENDING.
     task_meta = task_result.backend.get_task_meta(task_result.id) if task_result.backend else {}
-    meta_status = task_meta.get("status") if isinstance(task_meta, dict) else None
-    meta_result = task_meta.get("result") if isinstance(task_meta, dict) else None
-    meta_status_norm = meta_status.lower() if isinstance(meta_status, str) else None
-    
-    if meta_status_norm in ("processing", "started") and isinstance(meta_result, dict):
-        status = TaskStatus.PROCESSING
-        current_iter = meta_result.get("current_iteration", 0)
-        if request.include_image:
-            image_data = meta_result.get("preview", None)
-    elif meta_status_norm is None and celery_status == 'PENDING':
-        # Fallback: read raw meta from Redis directly
-        try:
-            r = redis.Redis(host="localhost", port=6379, db=0)
-            raw = r.get(f"celery-task-meta-{task_result.id}")
-            if raw:
-                meta = json.loads(raw)
-                meta_status = meta.get("status")
-                meta_result = meta.get("result")
-                meta_status_norm = meta_status.lower() if isinstance(meta_status, str) else None
-                if meta_status_norm in ("processing", "started") and isinstance(meta_result, dict):
-                    status = TaskStatus.PROCESSING
-                    current_iter = meta_result.get("current_iteration", 0)
-                    if request.include_image:
-                        image_data = meta_result.get("preview", None)
-        except Exception:
-            pass
-    elif celery_status == 'PENDING':
-        status = TaskStatus.PENDING
-    elif celery_status == 'STARTED' or celery_status == 'PROCESSING': # Custom state or standard STARTED
-        status = TaskStatus.PROCESSING
-        # Get progress info
-        if task_result.info and isinstance(task_result.info, dict):
-            current_iter = task_result.info.get("current_iteration", 0)
-            if request.include_image:
-                image_data = task_result.info.get("preview", None)
-    elif celery_status == 'SUCCESS':
+
+    def _normalize_meta_object(meta_obj):
+        if isinstance(meta_obj, dict):
+            return meta_obj
+        if isinstance(meta_obj, (bytes, str)):
+            try:
+                parsed = json.loads(meta_obj)
+                if isinstance(parsed, str):
+                    parsed = json.loads(parsed)
+                return parsed if isinstance(parsed, dict) else {}
+            except Exception:
+                return {}
+        return {}
+
+    def _apply_progress_meta(meta: dict) -> bool:
+        nonlocal status, current_iter, overall_iter, image_data
+        meta = _normalize_meta_object(meta)
+        if not meta:
+            return False
+
+        meta_status = meta.get("status")
+        meta_status_norm = meta_status.lower() if isinstance(meta_status, str) else None
+        meta_result = meta.get("result")
+        meta_payload = meta_result if isinstance(meta_result, dict) else meta
+        if not isinstance(meta_payload, dict):
+            return False
+
+        has_progress = ("current_iteration" in meta_payload) or ("overall_iteration" in meta_payload)
+        if not has_progress:
+            return False
+
+        meta_current = int(meta_payload.get("current_iteration") or 0)
+        meta_overall = int(meta_payload.get("overall_iteration") or overall_iter)
+
+        # Some backends may temporarily expose "pending" while result already has progress.
+        if meta_status_norm in ("processing", "started") or meta_current > 0:
+            status = TaskStatus.PROCESSING
+
+        if meta_current > current_iter:
+            current_iter = meta_current
+        if meta_overall > 0:
+            overall_iter = meta_overall
+
+        if request.include_image and meta_payload.get("preview"):
+            image_data = meta_payload.get("preview")
+        return True
+
+    live_task = celery_status in ('PENDING', 'STARTED', 'PROCESSING')
+    if live_task:
+        _apply_progress_meta(task_meta)
+
+        # Redis raw meta fallback: robust for Celery states that lag behind actual progress.
+        if current_iter == 0:
+            try:
+                r = redis.Redis(host="localhost", port=6379, db=0)
+                raw = r.get(f"celery-task-meta-{task_result.id}")
+                if raw:
+                    _apply_progress_meta(raw)
+            except Exception:
+                pass
+
+        if status == TaskStatus.PENDING and celery_status in ('STARTED', 'PROCESSING'):
+            status = TaskStatus.PROCESSING
+
+        if status == TaskStatus.PROCESSING and isinstance(task_result.info, dict):
+            info_current = int(task_result.info.get("current_iteration") or 0)
+            info_overall = int(task_result.info.get("overall_iteration") or overall_iter)
+            if info_current > current_iter:
+                current_iter = info_current
+            if info_overall > 0:
+                overall_iter = info_overall
+            if request.include_image and task_result.info.get("preview"):
+                image_data = task_result.info.get("preview")
+
+    if celery_status == 'SUCCESS':
         status = TaskStatus.FINISHED
         result = task_result.result
         # The worker returns specific dict
-        current_iter = result.get("iteration", 1000) if isinstance(result, dict) else 1000
+        current_iter = result.get("iteration", overall_iter) if isinstance(result, dict) else overall_iter
+        overall_iter = result.get("iteration", overall_iter) if isinstance(result, dict) else overall_iter
         
         # Load result image to return base64 if requested
         if request.include_image and result and "final_image_path" in result:
@@ -149,19 +192,29 @@ async def query_task(request: QueryTaskRequest):
         
     elif celery_status == 'FAILURE':
         status = TaskStatus.FAILED
+        if isinstance(task_result.result, Exception):
+            error_message = str(task_result.result)
+        elif task_result.result is not None:
+            error_message = str(task_result.result)
+        elif isinstance(task_meta, dict) and task_meta.get("traceback"):
+            traceback_lines = str(task_meta.get("traceback")).strip().splitlines()
+            error_message = traceback_lines[-1] if traceback_lines else "Task failed"
     elif celery_status == 'REVOKED':
         status = TaskStatus.STOPPED
+    elif celery_status == 'PENDING' and status != TaskStatus.PROCESSING:
+        status = TaskStatus.PENDING
 
     return RetouchingResponse(
         task_id=request.task_id,
         status=status,
         current_iteration=current_iter,
-        image=image_data if image_data else "", # Schema expects str, not None? Validator might complain if None passed for str field. Check schema default.
-        lut=lut_data 
+        overall_iteration=overall_iter,
+        image=image_data,
+        lut=lut_data,
+        error=error_message,
     )
 
 @app.post("/stop_task")
 async def stop_task(request: StopTaskRequest):
     celery_app.control.revoke(str(request.task_id), terminate=True)
     return {"status": "ok", "task_id": request.task_id}
-

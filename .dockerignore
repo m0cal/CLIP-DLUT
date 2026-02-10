@@ -1,0 +1,10 @@
+storage/
+.git/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+test_input_sent.png

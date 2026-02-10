@@ -13,4 +13,5 @@ class RetouchingResponse(BaseModel):
     overall_iteration: int = Field(default=1000, description="总迭代次数")
     lut: str | None = Field(default=None, description="根据需求，返回对应形式的 LUT，如果是 PNG，返回 Base64 编码的 PNG")
     image: str | None = Field(default=None, description="根据需求，返回缩略图的 Base64 编码。")
+    error: str | None = Field(default=None, description="任务失败时的错误信息。")
     

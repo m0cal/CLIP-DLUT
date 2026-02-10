@@ -1,11 +1,35 @@
+import os
+import time
+import urllib.request
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
 from transformers import ChineseCLIPProcessor, ChineseCLIPModel
+from huggingface_hub import snapshot_download
 
 from .image_preprocesser import DifferentiableChineseCLIPProcessor
+
+MODEL_ID = "OFA-Sys/chinese-clip-vit-large-patch14-336px"
+
+
+def _get_hf_cache_dir() -> str | None:
+    return os.environ.get("HF_HOME") or os.environ.get("TRANSFORMERS_CACHE")
+
+def _get_hf_endpoint() -> str | None:
+    return os.environ.get("HF_ENDPOINT") or os.environ.get("HUGGINGFACE_HUB_BASE_URL")
+
+def _resolve_hf_endpoint() -> str | None:
+    endpoint = _get_hf_endpoint()
+    if endpoint:
+        return endpoint
+    # If huggingface.co is not reachable, fall back to the mirror automatically.
+    try:
+        urllib.request.urlopen("https://huggingface.co", timeout=3)
+        return None
+    except Exception:
+        return "https://hf-mirror.com"
 
 class CLIPLoss(nn.Module):
     def __init__(
@@ -25,8 +49,35 @@ class CLIPLoss(nn.Module):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.device = device
         
-        # 加载模型
-        self.model = ChineseCLIPModel.from_pretrained("OFA-Sys/chinese-clip-vit-large-patch14-336px").to(device)
+        # 加载模型（先确保本地缓存可用，再用本地路径加载，避免再触网）
+        cache_dir = _get_hf_cache_dir()
+        snapshot_path = None
+        endpoint = _resolve_hf_endpoint()
+        for attempt in range(3):
+            try:
+                if endpoint:
+                    print(f"[CLIPLoss] Using HF endpoint: {endpoint}")
+                snapshot_path = snapshot_download(
+                    repo_id=MODEL_ID,
+                    cache_dir=cache_dir,
+                    endpoint=endpoint,
+                )
+                break
+            except Exception as e:
+                if attempt == 2:
+                    raise
+                print(f"[CLIPLoss] Snapshot download failed ({e}). Retry {attempt + 1}/3...")
+                time.sleep(2)
+
+        # 使用本地快照路径加载，避免继续请求 huggingface.co
+        self.model = ChineseCLIPModel.from_pretrained(
+            snapshot_path,
+            local_files_only=True,
+        ).to(device)
+        self.text_processor = ChineseCLIPProcessor.from_pretrained(
+            snapshot_path,
+            local_files_only=True,
+        )
 
         # 冻结模型参数
         if frozen:
@@ -34,7 +85,6 @@ class CLIPLoss(nn.Module):
                 param.requires_grad = False
             self.model.eval()
         
-        self.text_processor = ChineseCLIPProcessor.from_pretrained("OFA-Sys/chinese-clip-vit-large-patch14-336px")
         self.image_processor = DifferentiableChineseCLIPProcessor().to(self.device)
 
         # 计算 original_text_features

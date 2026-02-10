@@ -13,27 +13,28 @@ from modules.loss import AllLoss, LossWeights
 def run(image: Tensor, 
         target_text, 
         original_text="一张自然的原相机直出图", 
-        epsilon = 0.001,
-        lr=1e-4,
-        iteration=10,
+        epsilon = 0.003,
+        lr=4e-4,
+        iteration=120,
         progress_callback=None):
+    iteration = max(1, int(iteration))
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     dynamics_epsilon = epsilon
     predictor = GradientPredictor(frozen=False).to(device)
     # 关闭噪声，避免随机游走导致 LUT 崩塌
     dynamics = DynamicsApplier(epsilon=dynamics_epsilon, use_noise=False).to(device)
-    loss_weights = LossWeights(clip=1.0,
-                               clip_c=0.7,
-                               mono=1.0,
-                               smoothness=1.0,
+    loss_weights = LossWeights(clip=3.0,
+                               clip_c=4.0,
+                               mono=0.5,
+                               smoothness=0.5,
                                color_vol=1.0,
-                               color_shift=20.0,
-                               color_eigen=10000.0)
+                               color_shift=60.0,
+                               color_eigen=4000.0)
     all_loss = AllLoss(image, original_text, target_text, loss_weights)
     lut_applier = LUTApplier(33).to(device)
     optimizer = optim.AdamW(predictor.parameters(), lr)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=iteration, eta_min=1e-6) # 添加学习率调度器
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1, iteration), eta_min=1e-6) # 添加学习率调度器
 
     # 固定的 Identity LUT，作为锚点
     identity_lut = create_identity_lut().to(image.device)

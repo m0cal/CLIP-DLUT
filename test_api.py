@@ -3,12 +3,16 @@ import requests
 import base64
 import io
 import sys
-from PIL import Image, ImageFilter
+from PIL import Image, ImageFilter, ImageOps
 import numpy as np
 
 API_URL = "http://127.0.0.1:8000"
 
 import os
+
+# Use a session that ignores proxy env vars so localhost stays direct.
+session = requests.Session()
+session.trust_env = False
 
 def apply_cube_lut(image_path: str, lut_content: str, output_path: str):
     """
@@ -64,6 +68,29 @@ def apply_cube_lut(image_path: str, lut_content: str, output_path: str):
     except Exception as e:
         print(f"❌ Failed to apply LUT locally: {e}")
 
+def preprocess_for_model(image_path: str, output_path: str, target_size: int = 336) -> str:
+    """
+    Resize the image so the long side is target_size and pad to a square.
+    This mirrors model/run.py image_to_tensor behavior.
+    """
+    img = Image.open(image_path).convert('RGB')
+    w, h = img.size
+
+    scale = target_size / max(w, h)
+    new_w = int(w * scale)
+    new_h = int(h * scale)
+
+    img = img.resize((new_w, new_h), resample=Image.Resampling.BICUBIC)
+
+    pad_left = (target_size - new_w) // 2
+    pad_top = (target_size - new_h) // 2
+    pad_right = target_size - new_w - pad_left
+    pad_bottom = target_size - new_h - pad_top
+
+    img = ImageOps.expand(img, border=(pad_left, pad_top, pad_right, pad_bottom), fill=0)
+    img.save(output_path)
+    return output_path
+
 def prepare_input_image():
     """Load or create test image and save to 'test_input_sent.png'."""
     # Prioritize model/test.jpg, fallback to model/shw.jpg for backward compat
@@ -92,7 +119,7 @@ def prepare_input_image():
 def check_health():
     """Check if the API is reachable."""
     try:
-        response = requests.get(f"{API_URL}/")
+        response = session.get(f"{API_URL}/")
         if response.status_code == 200:
             print("✅ API is reachable.")
             return True
@@ -132,7 +159,7 @@ def run_test():
     }
     
     try:
-        resp = requests.post(f"{API_URL}/retouch", json=payload)
+        resp = session.post(f"{API_URL}/retouch", json=payload)
         resp.raise_for_status()
         data = resp.json()
         task_id = data['task_id']
@@ -149,7 +176,7 @@ def run_test():
     start_time = time.time()
     while True:
         try:
-            query_resp = requests.post(
+            query_resp = session.post(
                 f"{API_URL}/query_task", 
                 json={
                     "task_id": task_id, 
@@ -196,10 +223,15 @@ def run_test():
 
                 # Apply LUT locally to verify
                 if lut_content_str:
-                    # Apply to the exact image we sent
                     input_image_path = "test_input_sent.png"
                     if os.path.exists(input_image_path):
-                         apply_cube_lut(input_image_path, lut_content_str, "client_lut_applied.png")
+                        # Apply to preprocessed image to match server pipeline
+                        preprocessed_path = preprocess_for_model(
+                            input_image_path,
+                            "test_input_preprocessed.png",
+                            target_size=336
+                        )
+                        apply_cube_lut(preprocessed_path, lut_content_str, "client_lut_applied_preprocessed.png")
                     else:
                         print("⚠️ Skipping local LUT application: Input image test_input_sent.png not found.")
 

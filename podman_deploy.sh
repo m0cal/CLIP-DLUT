@@ -8,6 +8,14 @@ IMAGE_NAME="clip-dlut-app"
 REDIS_CONTAINER="clip-dlut-redis"
 BACKEND_CONTAINER="clip-dlut-backend"
 WORKER_CONTAINER="clip-dlut-worker"
+PROXY_URL_CONTAINER="${PROXY_URL_CONTAINER:-}"
+NO_PROXY_CONTAINER="localhost,127.0.0.1,::1,host.containers.internal"
+HF_HOME_CONTAINER="${HF_HOME_CONTAINER:-/app/storage/hf}"
+HF_DISABLE_XET="${HF_DISABLE_XET:-1}"
+HF_ENDPOINT_CONTAINER="${HF_ENDPOINT_CONTAINER:-}"
+HF_ENABLE_HF_TRANSFER="${HF_ENABLE_HF_TRANSFER:-1}"
+HUGGINGFACE_HUB_DISABLE_XET="${HUGGINGFACE_HUB_DISABLE_XET:-1}"
+HUGGINGFACE_HUB_BASE_URL_CONTAINER="${HUGGINGFACE_HUB_BASE_URL_CONTAINER:-}"
 
 echo "=== CLIP-DLUT Podman Deployment ==="
 
@@ -53,6 +61,17 @@ podman run -d --pod $POD_NAME \
     -v $(pwd)/storage:/app/storage \
     -v $(pwd)/backend:/app/backend \
     -v $(pwd)/model:/app/model \
+    -e HF_HOME=$HF_HOME_CONTAINER \
+    -e TRANSFORMERS_CACHE=$HF_HOME_CONTAINER/transformers \
+    -e HF_HUB_DISABLE_XET=$HF_DISABLE_XET \
+    -e HF_HUB_ENABLE_HF_TRANSFER=$HF_ENABLE_HF_TRANSFER \
+    -e HUGGINGFACE_HUB_DISABLE_XET=$HUGGINGFACE_HUB_DISABLE_XET \
+    ${HF_ENDPOINT_CONTAINER:+-e HF_ENDPOINT=$HF_ENDPOINT_CONTAINER} \
+    ${HUGGINGFACE_HUB_BASE_URL_CONTAINER:+-e HUGGINGFACE_HUB_BASE_URL=$HUGGINGFACE_HUB_BASE_URL_CONTAINER} \
+    ${PROXY_URL_CONTAINER:+-e http_proxy=$PROXY_URL_CONTAINER} \
+    ${PROXY_URL_CONTAINER:+-e https_proxy=$PROXY_URL_CONTAINER} \
+    ${PROXY_URL_CONTAINER:+-e all_proxy=$PROXY_URL_CONTAINER} \
+    ${PROXY_URL_CONTAINER:+-e NO_PROXY=$NO_PROXY_CONTAINER} \
     $IMAGE_NAME \
     uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
@@ -65,6 +84,17 @@ podman run -d --pod $POD_NAME \
     -v $(pwd)/storage:/app/storage \
     -v $(pwd)/backend:/app/backend \
     -v $(pwd)/model:/app/model \
+    -e HF_HOME=$HF_HOME_CONTAINER \
+    -e TRANSFORMERS_CACHE=$HF_HOME_CONTAINER/transformers \
+    -e HF_HUB_DISABLE_XET=$HF_DISABLE_XET \
+    -e HF_HUB_ENABLE_HF_TRANSFER=$HF_ENABLE_HF_TRANSFER \
+    -e HUGGINGFACE_HUB_DISABLE_XET=$HUGGINGFACE_HUB_DISABLE_XET \
+    ${HF_ENDPOINT_CONTAINER:+-e HF_ENDPOINT=$HF_ENDPOINT_CONTAINER} \
+    ${HUGGINGFACE_HUB_BASE_URL_CONTAINER:+-e HUGGINGFACE_HUB_BASE_URL=$HUGGINGFACE_HUB_BASE_URL_CONTAINER} \
+    ${PROXY_URL_CONTAINER:+-e http_proxy=$PROXY_URL_CONTAINER} \
+    ${PROXY_URL_CONTAINER:+-e https_proxy=$PROXY_URL_CONTAINER} \
+    ${PROXY_URL_CONTAINER:+-e all_proxy=$PROXY_URL_CONTAINER} \
+    ${PROXY_URL_CONTAINER:+-e NO_PROXY=$NO_PROXY_CONTAINER} \
     $IMAGE_NAME \
     celery -A backend.core.celery_app worker --loglevel=info --concurrency=1 --pool=solo
 

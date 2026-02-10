@@ -11,7 +11,7 @@ class RetouchingRequest(BaseModel):
     image: str = Field(...,description="需要调色的图片，Base64 格式，最好是 336*336 大。")
     target_prompt: str = Field(..., description="目标风格描述，需要带上图片内容，比如“一条赛博朋克色调的街道”。")
     original_prompt: str | None = Field(default="一张自然色调的图片", description="图片内容描述。")
-    iteration: int | None = Field(default=1000, ge=1, le=5000, description="迭代处理次数。")
+    iteration: int = Field(default=1000, ge=1, le=5000, description="迭代处理次数。")
 
 
 class QueryTaskRequest(BaseModel):
@@ -21,4 +21,3 @@ class QueryTaskRequest(BaseModel):
 
 class StopTaskRequest(BaseModel):
     task_id: UUID = Field(...,description="任务唯一标识。")
-

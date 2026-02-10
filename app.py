@@ -124,7 +124,7 @@ with gr.Blocks(title="CLIP-DLUT Style Transfer") as demo:
             )
             
             with gr.Accordion("Hyperparameters", open=False):
-                epsilon_comp = gr.Number(label="Epsilon (Dynamics)", value=2e-3, step=1e-4)
+                epsilon_comp = gr.Number(label="Epsilon (Dynamics)", value=1e-3, step=1e-4)
                 lr_comp = gr.Number(label="Learning Rate", value=2e-4, step=1e-5)
                 iteration_comp = gr.Slider(
                     minimum=10, 

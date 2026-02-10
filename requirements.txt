@@ -13,6 +13,10 @@ anyio==4.12.1
     #   gradio
     #   httpx
     #   starlette
+attrs==25.4.0
+    # via
+    #   jsonschema
+    #   referencing
 # audioop-lts==0.2.2
     # via gradio
 billiard==4.2.4
@@ -102,6 +106,10 @@ jinja2==3.1.6
     # via
     #   gradio
     #   torch
+jsonschema==4.26.0
+    # via mistral-common
+jsonschema-specifications==2025.9.1
+    # via jsonschema
 kombu==5.6.2
     # via celery
 markdown-it-py==4.0.0
@@ -112,6 +120,8 @@ markupsafe==3.0.3
     #   jinja2
 mdurl==0.1.2
     # via markdown-it-py
+mistral-common==1.9.0
+    # via clip-dlut
 modelscope==1.34.0
     # via clip-dlut
 mpmath==1.3.0
@@ -121,6 +131,7 @@ networkx==3.6.1
 numpy==2.4.1
     # via
     #   gradio
+    #   mistral-common
     #   pandas
     #   torchvision
 nvidia-cublas-cu12==12.8.4.1 ; platform_machine == 'x86_64' and sys_platform == 'linux'
@@ -176,16 +187,23 @@ pillow==12.1.0
     # via
     #   clip-dlut
     #   gradio
+    #   mistral-common
     #   torchvision
 prompt-toolkit==3.0.52
     # via click-repl
+pycountry==24.6.1
+    # via pydantic-extra-types
 pydantic==2.12.5
     # via
     #   fastapi
     #   gradio
+    #   mistral-common
+    #   pydantic-extra-types
     #   pydantic-settings
 pydantic-core==2.41.5
     # via pydantic
+pydantic-extra-types==2.11.0
+    # via mistral-common
 pydantic-settings==2.12.0
     # via clip-dlut
 pydub==0.25.1
@@ -210,14 +228,26 @@ pyyaml==6.0.3
     #   huggingface-hub
 redis==7.1.0
     # via clip-dlut
+referencing==0.37.0
+    # via
+    #   jsonschema
+    #   jsonschema-specifications
 regex==2026.1.15
-    # via clip-dlut
+    # via
+    #   clip-dlut
+    #   tiktoken
 requests==2.32.5
     # via
     #   clip-dlut
+    #   mistral-common
     #   modelscope
+    #   tiktoken
 rich==14.3.2
     # via typer
+rpds-py==0.30.0
+    # via
+    #   jsonschema
+    #   referencing
 safehttpx==0.1.7
     # via gradio
 semantic-version==2.10.0
@@ -238,6 +268,8 @@ starlette==0.52.1
     #   gradio
 sympy==1.14.0
     # via torch
+tiktoken==0.12.0
+    # via mistral-common
 tomlkit==0.13.3
     # via gradio
 torch==2.10.0
@@ -263,8 +295,10 @@ typing-extensions==4.15.0
     #   gradio
     #   gradio-client
     #   huggingface-hub
+    #   mistral-common
     #   pydantic
     #   pydantic-core
+    #   pydantic-extra-types
     #   torch
     #   typer
     #   typer-slim

@@ -4,6 +4,8 @@ CLIP-DLUT is a deep learning-based image retouching system that leverages the CL
 
 This project implements a complete backend pipeline including a REST API, an asynchronous task queue for GPU processing, and containerized deployment scripts.
 
+Demo: https://www.modelscope.cn/studios/ryan818/CLIP-DLUT
+
 ## Features
 
 - **Text-Driven Retouching**: Uses Chinese-CLIP to guide color grading based on natural language descriptions.
